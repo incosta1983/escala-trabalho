@@ -43,20 +43,23 @@
             background-color: #22c55e; /* green-500 */
             color: white;
         }
-        .calendar-day:not(.empty):not(.presencial):not(.remoto):hover {
+        .calendar-day.afastamento {
+            background-color: #6b7280; /* gray-500 */
+            color: white;
+            text-decoration: line-through;
+        }
+        .calendar-day:not(.empty):not(.presencial):not(.remoto):not(.afastamento):hover {
             background-color: #e5e7eb; /* gray-200 */
         }
         .calendar-day.selected {
             outline: 2px solid #1d4ed8; /* blue-800 */
             outline-offset: 2px;
         }
-        /* Style for today's date */
         .calendar-day.today {
             position: relative;
             background-color: #e0e7ff; /* indigo-100 */
             color: #3730a3; /* indigo-800 */
         }
-        /* Initial state sections */
         #main-content, #upload-section, #loading-section {
             display: none;
         }
@@ -67,8 +70,11 @@
     <div class="container mx-auto p-4 sm:p-6 lg:p-8 max-w-4xl">
         <div class="bg-white shadow-lg rounded-2xl p-6 md:p-8 min-h-[500px] flex flex-col justify-center">
             
-            <header class="mb-6 text-center">
+            <header class="mb-6 text-center relative">
                 <h1 class="text-3xl font-bold text-gray-900">Consulta de Escala de Trabalho</h1>
+                <button id="clear-data-button" class="hidden absolute top-0 right-0 bg-red-500 text-white text-xs font-bold py-1 px-2 rounded-md hover:bg-red-600 transition" title="Apaga todos os dados guardados e recomeça.">
+                    Limpar Dados e Recomeçar
+                </button>
             </header>
 
             <!-- Loading Section -->
@@ -120,13 +126,14 @@
                 
                 <!-- Day Details Section -->
                 <div class="mt-6 pt-6 border-t border-gray-200">
-                    <div class="flex justify-start items-center gap-4 mb-4">
+                    <div class="flex flex-wrap justify-start items-center gap-4 mb-4">
                         <div class="flex items-center gap-2"><span class="w-4 h-4 rounded-full bg-blue-500"></span><span>Presencial</span></div>
                         <div class="flex items-center gap-2"><span class="w-4 h-4 rounded-full bg-green-500"></span><span>Remoto</span></div>
+                        <div class="flex items-center gap-2"><span class="w-4 h-4 rounded-full bg-gray-500"></span><span>Afastamento</span></div>
                     </div>
                     <div id="day-details">
                         <h3 id="details-title" class="text-lg font-semibold text-gray-800 mb-3">Clique num dia para ver os detalhes</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
                                 <h4 class="font-semibold text-green-700 mb-2">Trabalho Remoto</h4>
                                 <ul id="remote-list" class="list-disc list-inside bg-gray-50 p-4 rounded-lg h-48 overflow-y-auto"></ul>
@@ -135,7 +142,35 @@
                                 <h4 class="font-semibold text-blue-700 mb-2">Trabalho Presencial</h4>
                                 <ul id="presencial-list" class="list-disc list-inside bg-gray-50 p-4 rounded-lg h-48 overflow-y-auto"></ul>
                             </div>
+                             <div>
+                                <h4 class="font-semibold text-gray-700 mb-2">Afastamentos</h4>
+                                <ul id="afastamento-list" class="list-disc list-inside bg-gray-50 p-4 rounded-lg h-48 overflow-y-auto"></ul>
+                            </div>
                         </div>
+                    </div>
+                     <!-- Manual Add Section -->
+                    <div id="manual-add-section" class="mt-6 pt-6 border-t border-gray-200">
+                         <h4 class="font-semibold text-gray-700 mb-2">Adicionar Afastamento</h4>
+                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+                             <div class="sm:col-span-1">
+                                <label for="afastamento-name-select" class="block text-sm font-medium text-gray-700 mb-1">Colaborador</label>
+                                <select id="afastamento-name-select" class="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition"></select>
+                             </div>
+                              <div class="sm:col-span-2 grid grid-cols-2 gap-4">
+                                <div>
+                                    <label for="start-date-input" class="block text-sm font-medium text-gray-700 mb-1">Data de Início</label>
+                                    <input type="date" id="start-date-input" class="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition">
+                                </div>
+                                <div>
+                                    <label for="end-date-input" class="block text-sm font-medium text-gray-700 mb-1">Data de Fim</label>
+                                    <input type="date" id="end-date-input" class="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition">
+                                </div>
+                              </div>
+                         </div>
+                         <div class="mt-4">
+                            <button id="add-afastamento-button" class="w-full sm:w-auto bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition">Adicionar Afastamento</button>
+                         </div>
+                         <p id="add-status-message" class="text-sm text-gray-500 mt-2 h-4"></p>
                     </div>
                 </div>
             </div>
@@ -158,20 +193,31 @@
         const detailsTitle = document.getElementById('details-title');
         const remoteList = document.getElementById('remote-list');
         const presencialList = document.getElementById('presencial-list');
+        const afastamentoList = document.getElementById('afastamento-list');
+        const clearDataButton = document.getElementById('clear-data-button');
+        const afastamentoNameSelect = document.getElementById('afastamento-name-select');
+        const startDateInput = document.getElementById('start-date-input');
+        const endDateInput = document.getElementById('end-date-input');
+        const addAfastamentoButton = document.getElementById('add-afastamento-button');
+        const addStatusMessage = document.getElementById('add-status-message');
 
         // --- State ---
         let currentYear, currentMonth;
         let scheduleData = [];
+        let afastamentosData = {};
         let allOptions = [];
         
-        const LOCAL_STORAGE_KEY = 'escalaCsvData';
+        const LOCAL_STORAGE_KEY = 'escalaAppState';
 
         function loadDataFromLocalStorage() {
             loadingSection.style.display = 'block';
             try {
-                const savedData = localStorage.getItem(LOCAL_STORAGE_KEY);
-                if (savedData) {
-                    initializeApplication(savedData);
+                const savedStateJSON = localStorage.getItem(LOCAL_STORAGE_KEY);
+                if (savedStateJSON) {
+                    const savedState = JSON.parse(savedStateJSON);
+                    afastamentosData = savedState.afastamentos || {};
+                    initializeApplication(savedState.csvData);
+                    clearDataButton.style.display = 'block';
                 } else {
                     uploadSection.style.display = 'block';
                 }
@@ -180,6 +226,19 @@
                 uploadSection.style.display = 'block';
             } finally {
                 loadingSection.style.display = 'none';
+            }
+        }
+
+        function saveDataToLocalStorage() {
+            try {
+                const state = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '{}');
+                const stateToSave = {
+                    csvData: state.csvData || '',
+                    afastamentos: afastamentosData
+                };
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(stateToSave));
+            } catch (error) {
+                console.error("Erro ao guardar no LocalStorage:", error);
             }
         }
 
@@ -192,14 +251,16 @@
             reader.onload = (e) => {
                 const csvData = e.target.result;
                 try {
-                    localStorage.setItem(LOCAL_STORAGE_KEY, csvData);
+                    const stateToSave = { csvData: csvData, afastamentos: {} };
+                    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(stateToSave));
+                    afastamentosData = {};
                     initializeApplication(csvData);
                     uploadSection.style.display = 'none';
                     mainContent.style.display = 'block';
+                    clearDataButton.style.display = 'block';
                 } catch (error) {
                     console.error("Erro ao processar ou salvar o arquivo CSV:", error);
                     alert(`Ocorreu um erro ao salvar o arquivo: ${error.message}`);
-                    fileNameDisplay.textContent = "Falha ao carregar. Tente novamente.";
                 }
             };
             reader.readAsText(file, 'UTF-8');
@@ -208,6 +269,7 @@
         function initializeApplication(csvData) {
             parseCSV(csvData);
             populateNameSelect();
+            populateAfastamentoSelect();
             
             const initialDate = new Date();
             currentYear = initialDate.getFullYear();
@@ -218,6 +280,9 @@
             prevMonthBtn.addEventListener('click', () => changeMonth(-1));
             nextMonthBtn.addEventListener('click', () => changeMonth(1));
             calendarGrid.addEventListener('click', handleDateClick);
+            addAfastamentoButton.addEventListener('click', handleAddAfastamento);
+            clearDataButton.addEventListener('click', handleClearData);
+
 
             if (scheduleData.length > 0) {
                 mainContent.style.display = 'block';
@@ -252,6 +317,7 @@
         }
 
         function parseCSV(data) {
+            if (!data) { scheduleData = []; return; }
             const lines = data.trim().split('\n');
             const headerLine = lines[0].split(';');
             const dateHeaders = headerLine.slice(2).map(h => ({ parsed: parseDateHeader(h) }));
@@ -277,16 +343,22 @@
             });
         }
 
+        function populateAfastamentoSelect() {
+            afastamentoNameSelect.innerHTML = '';
+            allOptions.forEach(option => {
+                afastamentoNameSelect.appendChild(option.cloneNode(true));
+            });
+        }
+
         function generateCalendar(year, month) {
             const personName = nameSelect.value;
-            const personData = scheduleData.find(p => p.nome === personName);
-            const schedule = personData ? personData.escala : {};
             calendarGrid.innerHTML = '';
 
             if (!document.querySelector('.calendar-day.selected')) {
                 detailsTitle.textContent = 'Clique num dia para ver os detalhes';
                 remoteList.innerHTML = '';
                 presencialList.innerHTML = '';
+                afastamentoList.innerHTML = '';
             }
             monthYearDisplay.textContent = new Date(year, month).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
             
@@ -309,39 +381,50 @@
                     dayCell.classList.add('today');
                 }
 
+                const personData = scheduleData.find(p => p.nome === personName);
+                const schedule = personData ? personData.escala : {};
                 const status = schedule[dateString];
-                if (status === 'PRESENCIAL') dayCell.classList.add('presencial');
-                else if (status === 'REMOTO') dayCell.classList.add('remoto');
+                const isAfastado = afastamentosData[dateString] && afastamentosData[dateString].includes(personName);
+
+                if (isAfastado) {
+                    dayCell.classList.add('afastamento');
+                } else if (status === 'PRESENCIAL') {
+                    dayCell.classList.add('presencial');
+                } else if (status === 'REMOTO') {
+                    dayCell.classList.add('remoto');
+                }
                 calendarGrid.appendChild(dayCell);
             }
         }
 
         function updateDayDetails(dateString) {
-            const remoteEmployees = scheduleData.filter(p => p.escala[dateString] === 'REMOTO').map(p => p.nome);
-            const presencialEmployees = scheduleData.filter(p => p.escala[dateString] === 'PRESENCIAL').map(p => p.nome);
+            const onLeave = afastamentosData[dateString] || [];
+            
+            const remoteEmployees = scheduleData
+                .filter(p => p.escala[dateString] === 'REMOTO' && !onLeave.includes(p.nome))
+                .map(p => p.nome);
+
+            const presencialEmployees = scheduleData
+                .filter(p => p.escala[dateString] === 'PRESENCIAL' && !onLeave.includes(p.nome))
+                .map(p => p.nome);
             
             const formattedDate = new Date(dateString + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
             detailsTitle.textContent = `Detalhes para ${formattedDate}:`;
             
-            // Populate Remote List
-            remoteList.innerHTML = '';
-            if (remoteEmployees.length > 0) {
-                remoteEmployees.forEach(name => remoteList.appendChild(document.createElement('li')).textContent = name);
-            } else {
-                const li = remoteList.appendChild(document.createElement('li'));
-                li.textContent = 'Ninguém em trabalho remoto.';
-                li.className = 'text-gray-500';
+            function populateList(listElement, data, emptyMessage) {
+                listElement.innerHTML = '';
+                if (data.length > 0) {
+                    data.forEach(name => listElement.appendChild(document.createElement('li')).textContent = name);
+                } else {
+                    const li = listElement.appendChild(document.createElement('li'));
+                    li.textContent = emptyMessage;
+                    li.className = 'text-gray-500';
+                }
             }
 
-            // Populate Presencial List
-            presencialList.innerHTML = '';
-            if (presencialEmployees.length > 0) {
-                presencialEmployees.forEach(name => presencialList.appendChild(document.createElement('li')).textContent = name);
-            } else {
-                const li = presencialList.appendChild(document.createElement('li'));
-                li.textContent = 'Ninguém em trabalho presencial.';
-                li.className = 'text-gray-500';
-            }
+            populateList(remoteList, remoteEmployees, 'Ninguém em trabalho remoto.');
+            populateList(presencialList, presencialEmployees, 'Ninguém em trabalho presencial.');
+            populateList(afastamentoList, onLeave, 'Ninguém de afastamento.');
         }
 
         function handleDateClick(e) {
@@ -351,6 +434,55 @@
             target.classList.add('selected');
             const dateString = target.dataset.date;
             updateDayDetails(dateString);
+        }
+
+        function handleAddAfastamento() {
+            const name = afastamentoNameSelect.value;
+            const startDate = startDateInput.value;
+            const endDate = endDateInput.value;
+
+            if (!name || !startDate || !endDate) {
+                addStatusMessage.textContent = 'Por favor, preencha todos os campos.';
+                setTimeout(() => addStatusMessage.textContent = '', 3000);
+                return;
+            }
+
+            let start = new Date(startDate + 'T00:00:00');
+            const end = new Date(endDate + 'T00:00:00');
+
+            if (start > end) {
+                addStatusMessage.textContent = 'A data de início não pode ser posterior à data de fim.';
+                setTimeout(() => addStatusMessage.textContent = '', 3000);
+                return;
+            }
+
+            for (let d = start; d <= end; d.setDate(d.getDate() + 1)) {
+                const dateString = d.toISOString().split('T')[0];
+                if (!afastamentosData[dateString]) {
+                    afastamentosData[dateString] = [];
+                }
+                if (!afastamentosData[dateString].includes(name)) {
+                    afastamentosData[dateString].push(name);
+                }
+            }
+
+            saveDataToLocalStorage();
+            generateCalendar(currentYear, currentMonth);
+            
+            const selectedDay = document.querySelector('.calendar-day.selected');
+            if (selectedDay) {
+                updateDayDetails(selectedDay.dataset.date);
+            }
+
+            addStatusMessage.textContent = `Afastamento para ${name} adicionado com sucesso!`;
+            setTimeout(() => addStatusMessage.textContent = '', 3000);
+        }
+
+        function handleClearData() {
+            if (window.confirm("Tem a certeza de que quer apagar todos os dados guardados (CSV e afastamentos)? Esta ação não pode ser desfeita.")) {
+                localStorage.removeItem(LOCAL_STORAGE_KEY);
+                location.reload();
+            }
         }
 
         function handleNameChange() { generateCalendar(currentYear, currentMonth); }
