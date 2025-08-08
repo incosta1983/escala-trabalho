@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Consulta de Escala com LocalStorage</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Custom styles */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* gray-100 */
+        }
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+        }
+        .calendar-day {
+            aspect-ratio: 1 / 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 50%;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+        }
+        .calendar-day.empty {
+            background-color: transparent;
+            cursor: default;
+        }
+        .calendar-day.presencial {
+            background-color: #3b82f6; /* blue-500 */
+            color: white;
+        }
+        .calendar-day.remoto {
+            background-color: #22c55e; /* green-500 */
+            color: white;
+        }
+        .calendar-day:not(.empty):not(.presencial):not(.remoto):hover {
+            background-color: #e5e7eb; /* gray-200 */
+        }
+        .calendar-day.selected {
+            outline: 2px solid #1d4ed8; /* blue-800 */
+            outline-offset: 2px;
+        }
+        /* Initial state sections */
+        #main-content, #upload-section, #loading-section {
+            display: none;
+        }
+    </style>
+</head>
+<body class="antialiased text-gray-800">
+
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8 max-w-4xl">
+        <div class="bg-white shadow-lg rounded-2xl p-6 md:p-8 min-h-[500px] flex flex-col justify-center">
+            
+            <header class="mb-6 text-center">
+                <h1 class="text-3xl font-bold text-gray-900">Consulta de Escala de Trabalho</h1>
+            </header>
+
+            <!-- Loading Section -->
+            <div id="loading-section" class="text-center">
+                 <svg class="animate-spin h-8 w-8 text-blue-600 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                <p class="text-gray-600">A verificar dados guardados...</p>
+            </div>
+
+            <!-- File Upload Section -->
+            <div id="upload-section" class="text-center border-2 border-dashed border-gray-300 rounded-lg p-8">
+                <h2 class="text-xl font-semibold mb-2">Bem-vindo!</h2>
+                <p class="mb-4 text-gray-600">Para o primeiro uso, por favor, carregue o arquivo CSV da escala. Ele ficará salvo no seu navegador para acessos futuros.</p>
+                <input type="file" id="csv-file-input" accept=".csv" class="hidden">
+                <label for="csv-file-input" class="cursor-pointer inline-block bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition">
+                    Selecionar arquivo (escalahome.csv)
+                </label>
+                <p id="file-name" class="mt-2 text-sm text-gray-500"></p>
+            </div>
+
+            <!-- Main App Content -->
+            <div id="main-content">
+                <!-- Controls -->
+                <div class="flex flex-col md:flex-row gap-4 my-6">
+                    <div class="flex-grow">
+                        <label for="search-input" class="block text-sm font-medium text-gray-700 mb-1">Pesquisar por nome</label>
+                        <input type="text" id="search-input" placeholder="Digite um nome para filtrar..." class="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition">
+                    </div>
+                    <div class="flex-grow">
+                        <label for="name-select" class="block text-sm font-medium text-gray-700 mb-1">Selecionar Colaborador (para destaque)</label>
+                        <select id="name-select" class="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition"></select>
+                    </div>
+                </div>
+
+                <!-- Calendar -->
+                <div id="calendar-container">
+                    <div class="flex items-center justify-between mb-4">
+                        <button id="prev-month" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold rounded-lg transition">&lt;</button>
+                        <h2 id="month-year" class="text-xl md:text-2xl font-semibold text-center"></h2>
+                        <button id="next-month" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold rounded-lg transition">&gt;</button>
+                    </div>
+                    <div class="calendar-grid text-sm mb-4">
+                        <div class="text-center font-semibold text-red-500">Dom</div><div class="text-center font-semibold">Seg</div><div class="text-center font-semibold">Ter</div><div class="text-center font-semibold">Qua</div><div class="text-center font-semibold">Qui</div><div class="text-center font-semibold">Sex</div><div class="text-center font-semibold">Sáb</div>
+                    </div>
+                    <div id="calendar-grid" class="calendar-grid"></div>
+                </div>
+                
+                <!-- Day Details Section -->
+                <div class="mt-6 pt-6 border-t border-gray-200">
+                    <div class="flex justify-start items-center gap-4 mb-4">
+                        <div class="flex items-center gap-2"><span class="w-4 h-4 rounded-full bg-blue-500"></span><span>Presencial</span></div>
+                        <div class="flex items-center gap-2"><span class="w-4 h-4 rounded-full bg-green-500"></span><span>Remoto</span></div>
+                    </div>
+                    <div id="day-details">
+                        <h3 id="details-title" class="text-lg font-semibold text-gray-800 mb-2">Clique num dia para ver os detalhes</h3>
+                        <ul id="remote-list" class="list-disc list-inside bg-gray-50 p-4 rounded-lg h-48 overflow-y-auto"></ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // --- DOM Element References ---
+        const fileInput = document.getElementById('csv-file-input');
+        const fileNameDisplay = document.getElementById('file-name');
+        const loadingSection = document.getElementById('loading-section');
+        const uploadSection = document.getElementById('upload-section');
+        const mainContent = document.getElementById('main-content');
+        const searchInput = document.getElementById('search-input');
+        const nameSelect = document.getElementById('name-select');
+        const calendarGrid = document.getElementById('calendar-grid');
+        const monthYearDisplay = document.getElementById('month-year');
+        const prevMonthBtn = document.getElementById('prev-month');
+        const nextMonthBtn = document.getElementById('next-month');
+        const detailsTitle = document.getElementById('details-title');
+        const remoteList = document.getElementById('remote-list');
+
+        // --- State ---
+        let currentYear, currentMonth;
+        let scheduleData = [];
+        let allOptions = [];
+        
+        const LOCAL_STORAGE_KEY = 'escalaCsvData';
+
+        function loadDataFromLocalStorage() {
+            loadingSection.style.display = 'block';
+            try {
+                const savedData = localStorage.getItem(LOCAL_STORAGE_KEY);
+                if (savedData) {
+                    initializeApplication(savedData);
+                } else {
+                    // No data found, show upload section
+                    uploadSection.style.display = 'block';
+                }
+            } catch (error) {
+                console.error("Erro ao carregar do LocalStorage:", error);
+                uploadSection.style.display = 'block'; // Fallback to upload
+            } finally {
+                loadingSection.style.display = 'none';
+            }
+        }
+
+        // --- File Handling ---
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            fileNameDisplay.textContent = `Arquivo carregado: ${file.name}`;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const csvData = e.target.result;
+                try {
+                    // Save data to LocalStorage
+                    localStorage.setItem(LOCAL_STORAGE_KEY, csvData);
+
+                    initializeApplication(csvData);
+                    uploadSection.style.display = 'none';
+                    mainContent.style.display = 'block';
+                } catch (error) {
+                    console.error("Erro ao processar ou salvar o arquivo CSV:", error);
+                    alert(`Ocorreu um erro ao salvar o arquivo: ${error.message}`);
+                    fileNameDisplay.textContent = "Falha ao carregar. Tente novamente.";
+                }
+            };
+            reader.readAsText(file, 'UTF-8');
+        });
+        
+        function initializeApplication(csvData) {
+            parseCSV(csvData);
+            populateNameSelect();
+            const firstDateKey = Object.keys(scheduleData[0]?.escala || {})[0];
+            const initialDate = firstDateKey ? new Date(firstDateKey + 'T00:00:00') : new Date();
+            currentYear = initialDate.getFullYear();
+            currentMonth = initialDate.getMonth();
+            nameSelect.addEventListener('change', handleNameChange);
+            searchInput.addEventListener('keyup', handleSearch);
+            prevMonthBtn.addEventListener('click', () => changeMonth(-1));
+            nextMonthBtn.addEventListener('click', () => changeMonth(1));
+            calendarGrid.addEventListener('click', handleDateClick);
+            if (scheduleData.length > 0) {
+                mainContent.style.display = 'block';
+                generateCalendar(currentYear, currentMonth);
+            } else {
+                uploadSection.style.display = 'block';
+            }
+        }
+
+        function parseDateHeader(header) {
+            const monthMap = { 'janeiro': 0, 'fevereiro': 1, 'março': 2, 'abril': 3, 'maio': 4, 'junho': 5, 'julho': 6, 'agosto': 7, 'setembro': 8, 'outubro': 9, 'novembro': 10, 'dezembro': 11 };
+            try {
+                const parts = header.split(', ')[1];
+                if (!parts) return null;
+                const dateParts = parts.split(' de ');
+                const day = parseInt(dateParts[0], 10);
+                const monthName = dateParts[1].toLowerCase();
+                const year = parseInt(dateParts[2], 10);
+                return new Date(Date.UTC(year, monthMap[monthName], day)).toISOString().split('T')[0];
+            } catch (e) { return null; }
+        }
+
+        function parseCSV(data) {
+            const lines = data.trim().split('\n');
+            const headerLine = lines[0].split(';');
+            const dateHeaders = headerLine.slice(2).map(h => ({ parsed: parseDateHeader(h) }));
+            scheduleData = lines.slice(1).map(line => {
+                const columns = line.split(';');
+                if (columns.length < 2) return null;
+                return {
+                    nome: columns[1],
+                    escala: Object.fromEntries(dateHeaders.map((h, i) => h.parsed ? [h.parsed, columns[i + 2]?.trim().toUpperCase()] : []))
+                };
+            }).filter(Boolean);
+        }
+
+        function populateNameSelect() {
+            nameSelect.innerHTML = '';
+            allOptions = [];
+            scheduleData.forEach(person => {
+                const option = document.createElement('option');
+                option.value = person.nome;
+                option.textContent = person.nome;
+                allOptions.push(option);
+                nameSelect.appendChild(option);
+            });
+        }
+
+        function generateCalendar(year, month) {
+            const personName = nameSelect.value;
+            const personData = scheduleData.find(p => p.nome === personName);
+            const schedule = personData ? personData.escala : {};
+            calendarGrid.innerHTML = '';
+            detailsTitle.textContent = 'Clique num dia para ver os detalhes';
+            remoteList.innerHTML = '';
+            monthYearDisplay.textContent = new Date(year, month).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+            const firstDayOfMonth = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            for (let i = 0; i < firstDayOfMonth; i++) calendarGrid.appendChild(document.createElement('div')).className = 'calendar-day empty';
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dayCell = document.createElement('div');
+                const dateString = new Date(Date.UTC(year, month, day)).toISOString().split('T')[0];
+                dayCell.textContent = day;
+                dayCell.className = 'calendar-day';
+                dayCell.dataset.date = dateString;
+                const status = schedule[dateString];
+                if (status === 'PRESENCIAL') dayCell.classList.add('presencial');
+                else if (status === 'REMOTO') dayCell.classList.add('remoto');
+                calendarGrid.appendChild(dayCell);
+            }
+        }
+
+        function handleDateClick(e) {
+            const target = e.target;
+            if (!target.classList.contains('calendar-day') || target.classList.contains('empty')) return;
+            document.querySelectorAll('.calendar-day.selected').forEach(el => el.classList.remove('selected'));
+            target.classList.add('selected');
+            const dateString = target.dataset.date;
+            const remoteEmployees = scheduleData.filter(p => p.escala[dateString] === 'REMOTO').map(p => p.nome);
+            const formattedDate = new Date(dateString + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+            detailsTitle.textContent = `Colaboradores em trabalho remoto em ${formattedDate}:`;
+            remoteList.innerHTML = '';
+            if (remoteEmployees.length > 0) {
+                remoteEmployees.forEach(name => remoteList.appendChild(document.createElement('li')).textContent = name);
+            } else {
+                const li = remoteList.appendChild(document.createElement('li'));
+                li.textContent = 'Nenhum colaborador em trabalho remoto neste dia.';
+                li.className = 'text-gray-500';
+            }
+        }
+
+        function handleNameChange() { generateCalendar(currentYear, currentMonth); }
+
+        function handleSearch() {
+            const filter = searchInput.value.toUpperCase();
+            nameSelect.innerHTML = '';
+            allOptions.forEach(option => {
+                if (option.textContent.toUpperCase().includes(filter)) nameSelect.appendChild(option.cloneNode(true));
+            });
+            if (nameSelect.options.length > 0) nameSelect.selectedIndex = 0;
+            handleNameChange();
+        }
+
+        function changeMonth(offset) {
+            currentMonth += offset;
+            if (currentMonth > 11) { currentMonth = 0; currentYear++; } 
+            else if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+            generateCalendar(currentYear, currentMonth);
+        }
+
+        // --- Start the app ---
+        document.addEventListener('DOMContentLoaded', loadDataFromLocalStorage);
+    </script>
+</body>
+</html>
