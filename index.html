@@ -63,18 +63,25 @@
         #main-content, #upload-section, #loading-section {
             display: none;
         }
+        #tooltip {
+            pointer-events: none; /* Make sure the tooltip doesn't interfere with mouse events */
+        }
     </style>
 </head>
 <body class="antialiased text-gray-800">
 
+    <div id="tooltip" class="absolute hidden z-50 p-2 text-sm font-medium text-white bg-gray-900 rounded-lg shadow-sm"></div>
+
     <div class="container mx-auto p-4 sm:p-6 lg:p-8 max-w-4xl">
-        <div class="bg-white shadow-lg rounded-2xl p-6 md:p-8 min-h-[500px] flex flex-col justify-center">
+        <div class="bg-white shadow-lg rounded-2xl p-6 md:p-8 min-h-[500px] flex flex-col justify-center relative">
             
-            <header class="mb-6 text-center relative">
+            <header class="mb-6 text-center">
                 <h1 class="text-3xl font-bold text-gray-900">Consulta de Escala de Trabalho</h1>
-                <button id="clear-data-button" class="hidden absolute top-0 right-0 bg-red-500 text-white text-xs font-bold py-1 px-2 rounded-md hover:bg-red-600 transition" title="Apaga todos os dados guardados e recomeça.">
-                    Limpar Dados e Recomeçar
-                </button>
+                <div class="mt-2">
+                    <button id="clear-data-button" class="hidden bg-red-500 text-white text-xs font-bold py-1 px-3 rounded-md hover:bg-red-600 transition" title="Apaga todos os dados guardados e recomeça.">
+                        Limpar Dados e Recomeçar
+                    </button>
+                </div>
             </header>
 
             <!-- Loading Section -->
@@ -179,6 +186,7 @@
 
     <script type="module">
         // --- DOM Element References ---
+        const tooltip = document.getElementById('tooltip');
         const fileInput = document.getElementById('csv-file-input');
         const fileNameDisplay = document.getElementById('file-name');
         const loadingSection = document.getElementById('loading-section');
@@ -282,6 +290,11 @@
             calendarGrid.addEventListener('click', handleDateClick);
             addAfastamentoButton.addEventListener('click', handleAddAfastamento);
             clearDataButton.addEventListener('click', handleClearData);
+
+            // Tooltip events
+            calendarGrid.addEventListener('mouseover', handleMouseOver);
+            calendarGrid.addEventListener('mouseout', handleMouseOut);
+            calendarGrid.addEventListener('mousemove', handleMouseMove);
 
 
             if (scheduleData.length > 0) {
@@ -502,6 +515,41 @@
             if (currentMonth > 11) { currentMonth = 0; currentYear++; } 
             else if (currentMonth < 0) { currentMonth = 11; currentYear--; }
             generateCalendar(currentYear, currentMonth);
+        }
+
+        // --- Tooltip Handlers ---
+        function handleMouseOver(e) {
+            const target = e.target;
+            if (!target.classList.contains('calendar-day') || target.classList.contains('empty')) return;
+
+            const dateString = target.dataset.date;
+            const onLeave = afastamentosData[dateString] || [];
+            const remoteEmployees = scheduleData
+                .filter(p => p.escala[dateString] === 'REMOTO' && !onLeave.includes(p.nome))
+                .map(p => p.nome);
+            
+            let tooltipContent = '';
+            if (remoteEmployees.length > 0) {
+                tooltipContent += '<strong>Remoto:</strong><br>' + remoteEmployees.join('<br>');
+            }
+            if (onLeave.length > 0) {
+                 if(tooltipContent) tooltipContent += '<br><br>';
+                tooltipContent += '<strong>Afastamento:</strong><br>' + onLeave.join('<br>');
+            }
+
+            if (tooltipContent) {
+                tooltip.innerHTML = tooltipContent;
+                tooltip.classList.remove('hidden');
+            }
+        }
+
+        function handleMouseOut(e) {
+            tooltip.classList.add('hidden');
+        }
+
+        function handleMouseMove(e) {
+            tooltip.style.left = (e.pageX + 15) + 'px';
+            tooltip.style.top = (e.pageY + 15) + 'px';
         }
 
         // --- Start the app ---
