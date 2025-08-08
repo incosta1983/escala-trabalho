@@ -50,6 +50,12 @@
             outline: 2px solid #1d4ed8; /* blue-800 */
             outline-offset: 2px;
         }
+        /* Style for today's date */
+        .calendar-day.today {
+            position: relative;
+            background-color: #e0e7ff; /* indigo-100 */
+            color: #3730a3; /* indigo-800 */
+        }
         /* Initial state sections */
         #main-content, #upload-section, #loading-section {
             display: none;
@@ -119,8 +125,17 @@
                         <div class="flex items-center gap-2"><span class="w-4 h-4 rounded-full bg-green-500"></span><span>Remoto</span></div>
                     </div>
                     <div id="day-details">
-                        <h3 id="details-title" class="text-lg font-semibold text-gray-800 mb-2">Clique num dia para ver os detalhes</h3>
-                        <ul id="remote-list" class="list-disc list-inside bg-gray-50 p-4 rounded-lg h-48 overflow-y-auto"></ul>
+                        <h3 id="details-title" class="text-lg font-semibold text-gray-800 mb-3">Clique num dia para ver os detalhes</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <h4 class="font-semibold text-green-700 mb-2">Trabalho Remoto</h4>
+                                <ul id="remote-list" class="list-disc list-inside bg-gray-50 p-4 rounded-lg h-48 overflow-y-auto"></ul>
+                            </div>
+                            <div>
+                                <h4 class="font-semibold text-blue-700 mb-2">Trabalho Presencial</h4>
+                                <ul id="presencial-list" class="list-disc list-inside bg-gray-50 p-4 rounded-lg h-48 overflow-y-auto"></ul>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -142,6 +157,7 @@
         const nextMonthBtn = document.getElementById('next-month');
         const detailsTitle = document.getElementById('details-title');
         const remoteList = document.getElementById('remote-list');
+        const presencialList = document.getElementById('presencial-list');
 
         // --- State ---
         let currentYear, currentMonth;
@@ -157,18 +173,16 @@
                 if (savedData) {
                     initializeApplication(savedData);
                 } else {
-                    // No data found, show upload section
                     uploadSection.style.display = 'block';
                 }
             } catch (error) {
                 console.error("Erro ao carregar do LocalStorage:", error);
-                uploadSection.style.display = 'block'; // Fallback to upload
+                uploadSection.style.display = 'block';
             } finally {
                 loadingSection.style.display = 'none';
             }
         }
 
-        // --- File Handling ---
         fileInput.addEventListener('change', (event) => {
             const file = event.target.files[0];
             if (!file) return;
@@ -178,9 +192,7 @@
             reader.onload = (e) => {
                 const csvData = e.target.result;
                 try {
-                    // Save data to LocalStorage
                     localStorage.setItem(LOCAL_STORAGE_KEY, csvData);
-
                     initializeApplication(csvData);
                     uploadSection.style.display = 'none';
                     mainContent.style.display = 'block';
@@ -196,18 +208,31 @@
         function initializeApplication(csvData) {
             parseCSV(csvData);
             populateNameSelect();
-            const firstDateKey = Object.keys(scheduleData[0]?.escala || {})[0];
-            const initialDate = firstDateKey ? new Date(firstDateKey + 'T00:00:00') : new Date();
+            
+            const initialDate = new Date();
             currentYear = initialDate.getFullYear();
             currentMonth = initialDate.getMonth();
+            
             nameSelect.addEventListener('change', handleNameChange);
             searchInput.addEventListener('keyup', handleSearch);
             prevMonthBtn.addEventListener('click', () => changeMonth(-1));
             nextMonthBtn.addEventListener('click', () => changeMonth(1));
             calendarGrid.addEventListener('click', handleDateClick);
+
             if (scheduleData.length > 0) {
                 mainContent.style.display = 'block';
                 generateCalendar(currentYear, currentMonth);
+
+                const today = new Date();
+                today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
+                const todayString = today.toISOString().split('T')[0];
+                const todayCell = document.querySelector(`.calendar-day[data-date="${todayString}"]`);
+                
+                if (todayCell) {
+                    todayCell.classList.add('selected');
+                    updateDayDetails(todayString);
+                }
+
             } else {
                 uploadSection.style.display = 'block';
             }
@@ -257,22 +282,65 @@
             const personData = scheduleData.find(p => p.nome === personName);
             const schedule = personData ? personData.escala : {};
             calendarGrid.innerHTML = '';
-            detailsTitle.textContent = 'Clique num dia para ver os detalhes';
-            remoteList.innerHTML = '';
+
+            if (!document.querySelector('.calendar-day.selected')) {
+                detailsTitle.textContent = 'Clique num dia para ver os detalhes';
+                remoteList.innerHTML = '';
+                presencialList.innerHTML = '';
+            }
             monthYearDisplay.textContent = new Date(year, month).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+            
+            const today = new Date();
+            today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
+            const todayString = today.toISOString().split('T')[0];
+
             const firstDayOfMonth = new Date(year, month, 1).getDay();
             const daysInMonth = new Date(year, month + 1, 0).getDate();
             for (let i = 0; i < firstDayOfMonth; i++) calendarGrid.appendChild(document.createElement('div')).className = 'calendar-day empty';
             for (let day = 1; day <= daysInMonth; day++) {
                 const dayCell = document.createElement('div');
                 const dateString = new Date(Date.UTC(year, month, day)).toISOString().split('T')[0];
+                
                 dayCell.textContent = day;
                 dayCell.className = 'calendar-day';
                 dayCell.dataset.date = dateString;
+
+                if (dateString === todayString) {
+                    dayCell.classList.add('today');
+                }
+
                 const status = schedule[dateString];
                 if (status === 'PRESENCIAL') dayCell.classList.add('presencial');
                 else if (status === 'REMOTO') dayCell.classList.add('remoto');
                 calendarGrid.appendChild(dayCell);
+            }
+        }
+
+        function updateDayDetails(dateString) {
+            const remoteEmployees = scheduleData.filter(p => p.escala[dateString] === 'REMOTO').map(p => p.nome);
+            const presencialEmployees = scheduleData.filter(p => p.escala[dateString] === 'PRESENCIAL').map(p => p.nome);
+            
+            const formattedDate = new Date(dateString + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+            detailsTitle.textContent = `Detalhes para ${formattedDate}:`;
+            
+            // Populate Remote List
+            remoteList.innerHTML = '';
+            if (remoteEmployees.length > 0) {
+                remoteEmployees.forEach(name => remoteList.appendChild(document.createElement('li')).textContent = name);
+            } else {
+                const li = remoteList.appendChild(document.createElement('li'));
+                li.textContent = 'Ninguém em trabalho remoto.';
+                li.className = 'text-gray-500';
+            }
+
+            // Populate Presencial List
+            presencialList.innerHTML = '';
+            if (presencialEmployees.length > 0) {
+                presencialEmployees.forEach(name => presencialList.appendChild(document.createElement('li')).textContent = name);
+            } else {
+                const li = presencialList.appendChild(document.createElement('li'));
+                li.textContent = 'Ninguém em trabalho presencial.';
+                li.className = 'text-gray-500';
             }
         }
 
@@ -282,17 +350,7 @@
             document.querySelectorAll('.calendar-day.selected').forEach(el => el.classList.remove('selected'));
             target.classList.add('selected');
             const dateString = target.dataset.date;
-            const remoteEmployees = scheduleData.filter(p => p.escala[dateString] === 'REMOTO').map(p => p.nome);
-            const formattedDate = new Date(dateString + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
-            detailsTitle.textContent = `Colaboradores em trabalho remoto em ${formattedDate}:`;
-            remoteList.innerHTML = '';
-            if (remoteEmployees.length > 0) {
-                remoteEmployees.forEach(name => remoteList.appendChild(document.createElement('li')).textContent = name);
-            } else {
-                const li = remoteList.appendChild(document.createElement('li'));
-                li.textContent = 'Nenhum colaborador em trabalho remoto neste dia.';
-                li.className = 'text-gray-500';
-            }
+            updateDayDetails(dateString);
         }
 
         function handleNameChange() { generateCalendar(currentYear, currentMonth); }
